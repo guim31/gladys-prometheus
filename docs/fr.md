@@ -146,7 +146,8 @@ Gladys ou de l'intégration est annoncée à son retour.
 - **Mettre une alerte en silence** (Alertmanager) : crée un silence pour un nom
   d'alerte, et d'autres étiquettes si besoin (`instance=nas:9100, job=node`),
   de 15 minutes à une semaine (1 heure par défaut). Résultats : l'identifiant
-  du silence, et les alertes actives qu'il a mises en silence. Désactivable
+  du silence, et les alertes actives qu'il a mises en silence. Donnez les autres étiquettes une à une
+  (`instance=…`), pas la variable qui les contient toutes. Désactivable
   dans la configuration.
 - **Lire les alertes** : compte et liste les alertes actives, toutes ou d'une
   sévérité. Résultats : alertes actives, critiques et avertissement, sévérité

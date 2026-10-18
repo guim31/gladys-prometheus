@@ -19,11 +19,15 @@ import {
   parsePrometheusAlerts,
   parseQueryResult,
   parseSample,
+  seriesKey,
   seriesNames,
   severityLevel,
 } from '../src/prometheus/model.js';
 import { featureValue, parseQueryFields, queryId, restoreQuery } from '../src/queries.js';
 import { FakePrometheus, PROMETHEUS_URL, fixture } from './helpers/fakePrometheus.js';
+
+const FROZEN_FINGERPRINT = '0ba7d743efeecac7';
+const FROZEN_SERIES_KEY = 'df24d4e84578';
 
 test('addresses: bare host with the default port, pages of the interfaces, prefixes', () => {
   assert.equal(parseBaseUrl('192.0.2.5', 9090), 'http://192.0.2.5:9090');
@@ -194,6 +198,9 @@ test('alerts of both APIs: same fingerprint, severity buckets, silences', () => 
   assert.equal(am[1].summary, 'offline-host:9100 is down');
   assert.equal(am[0].startsAt, Date.parse('2026-10-18T18:32:17.617Z'));
   assert.equal(alertFingerprint({ b: '1', a: '2' }), alertFingerprint({ a: '2', b: '1' }));
+  // Ids are forever: these hashes must never change.
+  assert.equal(alertFingerprint({ alertname: 'X', Zeta: '1', alpha: '2' }), FROZEN_FINGERPRINT);
+  assert.equal(seriesKey({ instance: 'nas:9100', job: 'node' }), FROZEN_SERIES_KEY);
   assert.deepEqual(
     ['CRITICAL', 'error', 'warning', 'info', 'none', 'oops', undefined].map(severityLevel),
     ['critical', 'critical', 'warning', 'info', 'info', 'other', 'other'],

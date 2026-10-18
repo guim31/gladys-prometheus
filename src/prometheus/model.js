@@ -14,7 +14,8 @@ const seriesLabels = (metric) =>
   Object.fromEntries(
     Object.entries(metric && typeof metric === 'object' ? metric : {})
       .filter(([name, value]) => name !== '__name__' && typeof value === 'string')
-      .sort(([a], [b]) => a.localeCompare(b)),
+      // By code point: these labels make ids, they must not depend on a locale.
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)),
   );
 
 /** The identity of a series: its sorted labels, hashed. Stable across reads. */
@@ -49,9 +50,24 @@ export function parseQueryResult(data) {
   if (data.resultType === 'vector' && Array.isArray(data.result)) {
     const series = data.result.map((entry) => {
       const labels = seriesLabels(entry?.metric);
-      return { key: seriesKey(labels), labels, value: parseSample(entry?.value?.[1]) };
+      return { key: seriesKey(labels), labels, value: parseSample(entry?.value?.[1]), entry };
     });
-    return { series };
+    // Series that differ by their metric name only (`{__name__=~"a|b"}`)
+    // keep it in their identity, and only those: the others stay stable.
+    const counts = new Map();
+    for (const { key } of series) {
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return {
+      series: series.map(({ key, labels, value, entry }) => {
+        const name = entry?.metric?.__name__;
+        if (counts.get(key) > 1 && typeof name === 'string') {
+          const named = { ...labels, __name__: name };
+          return { key: seriesKey(named), labels: named, value };
+        }
+        return { key, labels, value };
+      }),
+    };
   }
   if (data.resultType === 'matrix') {
     return { series: [], error: RESULT_ERRORS.RANGE };

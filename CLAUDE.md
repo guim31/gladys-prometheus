@@ -272,9 +272,39 @@ long, et sur un « Sie »/« Ihr… » de politesse en allemand. Le store exige 
   en silence ou inhibée : ni comptée ni annoncée, pas prise pour résolue. Sans Alertmanager, seules
   les alertes `firing` de Prometheus comptent (`pending` attend son `for`). Mêmes règles d'annonce
   que gladys-zabbix (marquée annoncée après acceptation par Gladys, plafond de 30 par lecture).
+  Différence avec gladys-zabbix (relecture du 18/10/2026) : une alerte vue au tout premier passage
+  est marquée `quiet` : ni son début ni **sa fin** ne sont annoncés (« résolue » sans « se
+  déclenche » surprenait).
+- **Erreurs** : seules les erreurs d'authentification, de TLS, de redirection et « pas une API
+  Prometheus » valent pour tout le serveur ; une requête refusée (tout `status: "error"`, y compris
+  l'`errorType` numérique de VictoriaMetrics) ou trop lente n'arrête ni les autres requêtes ni les
+  alertes. Serveur en panne : aucun état republié (pas de heartbeat de valeurs périmées).
+- **Budget d'états** : 240 par minute, réparti selon l'intervalle (60 par lecture à 15 s), les
+  valeurs publiées depuis le plus longtemps en premier (aucune fonctionnalité affamée avec 20 × 20
+  séries).
+- **Séries qui ne diffèrent que par `__name__`** (`{__name__=~"a|b"}`) : elles seules gardent
+  `__name__` dans leur identité, sinon elles se fondraient en une fonctionnalité.
 - **Sévérité** : étiquette libre ; `critical`/`error`/`page`/`high`… → `critical`, `warning`/`warn`/
   `average`… → `warning`, `info`/`none`/`low`… → `info`, le reste `other`. La variable et le filtre
   `severity` portent ce compartiment, `severity_label` la valeur brute.
 - **Silence** : correspondance exacte (`isEqual: true, isRegex: false`) sur `alertname` et les
   étiquettes données ; durées fixes de 15 min à 1 semaine. Créer seulement : pas d'action pour lever
   un silence (il finit seul, ou dans l'interface d'Alertmanager).
+
+## Vérifié sur un vrai Prometheus (18/10/2026)
+
+Image Docker de l'intégration avec les contraintes du bac à sable (`--cap-drop ALL --security-opt
+no-new-privileges --read-only --memory 256m --pids-limit 256`, volume `/data`, réseau en pont
+`gladys-test-prometheus`, aucun port publié) contre `quay.io/prometheus/prometheus` **3.15.0**,
+`alertmanager` **0.34.1** et `node-exporter`, avec une règle toujours active (`vector(1) > 0`), une
+cible injoignable et `up == 0` en critique.
+
+- Sans Gladys : reconnexion du SDK en backoff, pas de plantage, aucun secret dans les logs,
+  ~19 Mo au repos, arrêt propre sur SIGTERM (code 0).
+- Faux Gladys du SDK dans le conteneur verrouillé : requêtes à plusieurs séries, PromQL refusée
+  (400), vecteur de plage refusé, appareils et états, widget, « Lire les alertes », « Lire une
+  valeur PromQL », silence créé (alerte comptée « en silence ») puis expiré (`DELETE
+/api/v2/silence/<id>`, l'alerte revient sans être ré-annoncée) ; node-exporter arrêté puis
+  relancé : `alert_firing` puis `alert_resolved` (durée 1 min), état de la cible 1 → 0 → 1 ;
+  redémarrage sans doublon ; adresse d'Alertmanager à la place de Prometheus (`not_prometheus`,
+  404), hôte inconnu et `https://` sur un port HTTP (`unreachable`).

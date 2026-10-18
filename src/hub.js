@@ -79,10 +79,19 @@ export const HUB_TIMINGS = {
 export const MAX_EVENTS_PER_READ = 30;
 
 const MAX_STATES_PER_REQUEST = 100;
-// States per read, at most (Gladys accepts 300 per minute): the changes first,
-// then the heartbeats; the rest goes at the next read.
-export const MAX_STATES_PER_READ = 200;
+// States per minute, at most (Gladys accepts 300): the budget of a read is
+// its share of the minute; the values published longest ago go first, so
+// that no feature waits forever.
+export const MAX_STATES_PER_MINUTE = 240;
 const MAX_FEATURE_NAME = 60;
+
+// Errors that concern the server, not one query.
+const SERVER_ERRORS = new Set([
+  ERROR_KINDS.AUTH,
+  ERROR_KINDS.TLS,
+  ERROR_KINDS.REDIRECT,
+  ERROR_KINDS.NOT_PROMETHEUS,
+]);
 
 const signature = (config) =>
   JSON.stringify([
@@ -350,10 +359,13 @@ export class PrometheusHub {
         error: parsed.error ? { result: parsed.error } : null,
       };
     } catch (err) {
-      if (err.kind === ERROR_KINDS.QUERY) {
-        return { series: [], error: { kind: err.kind, detail: err.detail ?? err.message } };
+      // Credentials, certificate, address: the server is wrong for every query.
+      if (SERVER_ERRORS.has(err.kind)) {
+        throw err;
       }
-      throw err;
+      // A refused or too heavy query (a timeout once buildinfo answered)
+      // concerns this query only: the others are still read.
+      return { series: [], error: { kind: err.kind, detail: err.detail ?? err.message } };
     }
   }
 
@@ -473,12 +485,14 @@ export class PrometheusHub {
           instance: alert.instance,
           labels: labelsText(alert.labels),
           startsAt: alert.startsAt ?? this.now(),
-          // The alerts already there at the first read are not announced.
-          announced: !primed,
+          announced: false,
+          // The alerts already there at the first read are not announced,
+          // nor their end.
+          quiet: !primed,
         };
         known[alert.fingerprint] = entry;
       }
-      if (!entry.announced && !alert.suppressed) {
+      if (!entry.announced && !entry.quiet && !alert.suppressed) {
         events.push([TRIGGERS.FIRING, alert.fingerprint, entry]);
       }
     }
@@ -486,7 +500,7 @@ export class PrometheusHub {
       if (current.has(fingerprint)) {
         continue;
       }
-      if (entry.announced === false) {
+      if (!entry.announced) {
         delete known[fingerprint]; // never announced: its end is not either
       } else {
         events.push([TRIGGERS.RESOLVED, fingerprint, entry]);
@@ -617,12 +631,15 @@ export class PrometheusHub {
 
   /** The states of the added devices that changed (or are due for a heartbeat). */
   async publishStates() {
+    // A server that does not answer: its last values are not sent again as
+    // fresh ones (the badge says unreachable, Gladys shows their age).
     const values = [];
-    if (this.alerts && this.isCreated(alertsIds(this.gladys).device)) {
+    const alertsDown = this.alertmanager ? this.alertError : this.error;
+    if (this.alerts && !alertsDown && this.isCreated(alertsIds(this.gladys).device)) {
       values.push(...alertsValues(this.gladys, this.alerts));
     }
     for (const query of this.queries.values()) {
-      if (this.isCreated(queryIds(this.gladys, query.id).device)) {
+      if (!this.error && this.isCreated(queryIds(this.gladys, query.id).device)) {
         values.push(...this.valuesOf(query));
       }
     }
@@ -641,8 +658,13 @@ export class PrometheusHub {
         this.published.get(externalId) === value &&
         now - (this.publishedAt.get(externalId) ?? 0) >= this.timings.heartbeatMs,
     );
-    const states = [...changed, ...due]
-      .slice(0, force ? Infinity : MAX_STATES_PER_READ)
+    const budget = Math.max(
+      10,
+      Math.floor((MAX_STATES_PER_MINUTE * (this.config?.pollIntervalMs ?? 60_000)) / 60_000),
+    );
+    const age = ({ externalId }) => this.publishedAt.get(externalId) ?? 0;
+    const states = [...changed.sort((a, b) => age(a) - age(b)), ...due]
+      .slice(0, force ? Infinity : budget)
       .map(({ externalId, value }) => ({ device_feature_external_id: externalId, state: value }));
     for (let at = 0; at < states.length; at += MAX_STATES_PER_REQUEST) {
       const batch = states.slice(at, at + MAX_STATES_PER_REQUEST);
@@ -808,7 +830,7 @@ export class PrometheusHub {
       return pick(RESULT_TEXT[result.error.result], language);
     }
     if (result.error) {
-      return `${pick(ERROR_TEXT[ERROR_KINDS.QUERY], language)} (${result.error.detail})`;
+      return `${pick(ERROR_TEXT[result.error.kind] ?? ERROR_TEXT.http, language)} (${result.error.detail})`;
     }
     return result.series.length === 0 ? pick(RESULT_TEXT.empty, language) : null;
   }
@@ -854,6 +876,12 @@ export class PrometheusHub {
       existing.type === query.type &&
       existing.label === query.label;
     const saved = { ...query, series: same ? existing.series : {} };
+    if (!existing && this.queries.size >= MAX_QUERIES) {
+      // Another "Add a query" finished during the check.
+      throw new AnswerError(
+        inEveryLanguage((language) => REPORT_TEXT[language].tooMany(MAX_QUERIES)),
+      );
+    }
     this.queries.set(saved.id, saved);
     this.generation += 1; // a read in progress does not know this query
     if (result) {
@@ -874,6 +902,8 @@ export class PrometheusHub {
       const parts = [existing ? text.updated(saved.name) : text.added(saved.name)];
       if (!result) {
         parts.push(text.notChecked);
+      } else if (result.error) {
+        parts.push(this.queryProblem(saved, language));
       } else if (count === 0) {
         parts.push(pick(RESULT_TEXT.empty, language));
       } else {

@@ -145,7 +145,8 @@ de la integración se anuncia a su vuelta.
 - **Silenciar una alerta** (Alertmanager): crea un silencio para un nombre de
   alerta, y otras etiquetas si hace falta (`instance=nas:9100, job=node`), de
   15 minutos a una semana (1 hora por defecto). Resultados: el id. del
-  silencio y las alertas activas que ha silenciado. Se puede desactivar en la
+  silencio y las alertas activas que ha silenciado. Indique las otras etiquetas una a una
+  (`instance=…`), no la variable que las contiene todas. Se puede desactivar en la
   configuración.
 - **Leer las alertas**: cuenta y enumera las alertas activas, todas o de una
   gravedad. Resultados: alertas activas, críticas y de advertencia, gravedad

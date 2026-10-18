@@ -399,3 +399,65 @@ test('a normal reading cycle writes nothing at info level', async (t) => {
   assert.equal(lines.length, 2, lines.join('\n'));
   assert.ok(!lines.join('\n').includes('secret'));
 });
+
+test('the alerts already firing at the first read: neither their start nor their end', async (t) => {
+  const w = await world(t);
+  w.prometheus.resolve('TargetDown');
+  await w.hub.pollAll();
+  assert.deepEqual(w.fake.sceneEvents, []);
+});
+
+test('a failing query does not stop the others, nor the alerts', async (t) => {
+  const w = await world(t, { config: { ...BASE_CONFIG, alertmanager_url: '' } });
+  await addQuery(w, { name: 'Load', promql: 'node_load1' });
+  await addQuery(w, { name: 'Heavy', promql: 'heavy' });
+  await createDevices(w);
+  w.prometheus.queries.heavy = [
+    { status: 'error', errorType: '422', error: 'too many series' },
+    422,
+  ];
+  w.prometheus.setValue('node_load1', 3, { instance: 'node-exporter:9100', job: 'node' });
+  w.prometheus.fire({ alertname: 'StillSeen' });
+  await w.hub.pollAll();
+  assert.deepEqual(w.fake.connectionStatus, { connected: true });
+  const load = w.fake.discoveredDevices.find((device) => device.name === 'Load');
+  assert.equal(w.fake.lastState(load.features[0].external_id), 3);
+  assert.equal(w.fake.sceneEvents.at(-1).data.alertname, 'StillSeen');
+  const ack = await w.fake.action('test_connection', {});
+  assert.match(ack.data.message.en, /Heavy: query refused by Prometheus \(too many series\)/);
+});
+
+test('while Prometheus does not answer, no stale value is sent as a heartbeat', async (t) => {
+  const clock = createClock();
+  const w = await world(t, { clock });
+  await addQuery(w, { name: 'Load', promql: 'node_load1' });
+  await createDevices(w);
+  const count = w.fake.states.length;
+  w.prometheus.failure = { prometheus: 'down', alertmanager: 'down' };
+  clock.advance(7 * 3600_000);
+  await w.hub.pollAll();
+  assert.equal(w.fake.states.length, count);
+});
+
+test('series that differ by their metric name only keep it in their identity', async (t) => {
+  const w = await world(t);
+  w.prometheus.queries.loads = [
+    {
+      status: 'success',
+      data: {
+        resultType: 'vector',
+        result: ['node_load1', 'node_load5'].map((name, index) => ({
+          metric: { __name__: name, instance: 'nas:9100' },
+          value: [1, String(index + 1)],
+        })),
+      },
+    },
+    200,
+  ];
+  await addQuery(w, { name: 'Loads', promql: 'loads' });
+  const device = w.fake.discoveredDevices.find((entry) => entry.name === 'Loads');
+  assert.deepEqual(
+    device.features.map((feature) => feature.name),
+    ['node_load1', 'node_load5'],
+  );
+});

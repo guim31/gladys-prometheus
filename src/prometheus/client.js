@@ -160,9 +160,10 @@ export class PrometheusClient extends BaseClient {
     }
     if (parsed.status === 'error') {
       const detail = String(parsed.error ?? parsed.errorType ?? 'error');
-      const kind = ['bad_data', 'execution', 'timeout'].includes(parsed.errorType)
-        ? ERROR_KINDS.QUERY
-        : ERROR_KINDS.HTTP;
+      // An error answered by the API itself refuses this request, not the
+      // server: bad_data, execution, timeout, and the numeric errorType of
+      // VictoriaMetrics alike.
+      const kind = ERROR_KINDS.QUERY;
       throw new PrometheusError(kind, `${path.split('?')[0]}: ${detail}`, { status, detail });
     }
     return parsed.data;

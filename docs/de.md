@@ -149,7 +149,8 @@ der Integration auslöst oder behoben wird, wird nach der Rückkehr gemeldet.
   einen Alarmnamen, bei Bedarf mit weiteren Labels
   (`instance=nas:9100, job=node`), für 15 Minuten bis eine Woche
   (standardmäßig 1 Stunde). Ergebnisse: die ID der Stummschaltung und die
-  aktiven Alarme, die sie stummgeschaltet hat. In der Konfiguration
+  aktiven Alarme, die sie stummgeschaltet hat. Gib die weiteren Labels einzeln an
+  (`instance=…`), nicht die Variable mit allen Labels. In der Konfiguration
   abschaltbar.
 - **Alarme lesen**: zählt und listet die aktiven Alarme, alle oder eines
   Schweregrads. Ergebnisse: aktive, kritische und Warn-Alarme, höchster

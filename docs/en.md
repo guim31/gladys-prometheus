@@ -135,7 +135,8 @@ restarts is announced once it is back.
 - **Silence an alert** (Alertmanager): creates a silence for an alert name,
   and other labels if given (`instance=nas:9100, job=node`), for 15 minutes to
   a week (1 hour by default). Results: the silence id, and the firing alerts
-  it silenced. It can be turned off in the configuration.
+  it silenced. Give the other labels one by one
+  (`instance=…`), not the variable holding all the labels. It can be turned off in the configuration.
 - **Read the alerts**: counts and lists the firing alerts, all or of one
   severity. Results: firing, critical and warning alerts, highest severity,
   and the alerts as text (`TargetDown (nas:9100), DiskFull`).
