@@ -10,6 +10,8 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-10-18
+
 ### Added
 
 - Prometheus in Gladys: one device per PromQL query, added with the "Add a
@@ -28,3 +30,6 @@ the notes of the version's GitHub Release.
   request; "Test the connection".
 - Feature names, messages and documentation in English, French, German and
   Spanish.
+
+[Unreleased]: https://github.com/guim31/gladys-prometheus/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/guim31/gladys-prometheus/releases/tag/v1.0.0
