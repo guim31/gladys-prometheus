@@ -1,177 +1,1273 @@
 {
   "manifest_version": 1,
   "type": "device",
-  "name": "Demo Devices Template",
+  "name": "Prometheus",
   "description": {
-    "en": "Starter template showing sensors, a switch, a dimmable light and a smart plug.",
-    "fr": "Template de démarrage : capteurs, interrupteur, lampe variable et prise connectée."
+    "en": "Your PromQL queries as Gladys sensors, and scenes when a Prometheus alert fires or resolves.",
+    "fr": "Vos requêtes PromQL en capteurs Gladys, et des scènes quand une alerte Prometheus se déclenche.",
+    "de": "Deine PromQL-Abfragen als Gladys-Sensoren, mit Szenen, wenn ein Prometheus-Alarm auslöst.",
+    "es": "Sus consultas PromQL como sensores de Gladys, y escenas cuando salta una alerta de Prometheus."
   },
   "version": "1.0.0",
-  "docker_image": "ghcr.io/gladysassistant/integration-template-js:1.0.0",
+  "docker_image": "ghcr.io/guim31/gladys-prometheus:1.0.0",
   "gladys_version": ">=5.1.0",
-  "cover_image": "https://raw.githubusercontent.com/GladysAssistant/integration-template-js/master/cover.png",
-  "categories": ["lighting", "security", "environment"],
-  "transports": ["local", "cloud"],
+  "cover_image": "https://raw.githubusercontent.com/guim31/gladys-prometheus/main/cover.png",
+  "categories": ["network"],
+  "transports": ["local"],
   "config_schema": [
     {
       "key": "intro",
       "type": "section",
-      "label": { "en": "Getting started", "fr": "Pour commencer" },
+      "label": {
+        "en": "Your Prometheus",
+        "fr": "Votre Prometheus",
+        "de": "Dein Prometheus",
+        "es": "Su Prometheus"
+      },
       "description": {
-        "en": "The demo weather station reads real data from the free Open-Meteo API: pick the coordinates to observe. No account, no API key.",
-        "fr": "La station météo de démonstration lit de vraies données via l'API gratuite Open-Meteo : choisissez les coordonnées à observer. Pas de compte, pas de clé d'API."
+        "en": "Enter the address of Prometheus, and of Alertmanager to silence alerts. Then add your PromQL queries with \"Add a query\" below, and the devices to follow from the Discover tab.",
+        "fr": "Saisissez l'adresse de Prometheus, et d'Alertmanager pour mettre des alertes en silence. Ajoutez ensuite vos requêtes PromQL avec « Ajouter une requête » ci-dessous, puis les appareils à suivre depuis l'onglet Découverte.",
+        "de": "Gib die Adresse von Prometheus ein, und die von Alertmanager, um Alarme stummzuschalten. Füge dann deine PromQL-Abfragen mit „Abfrage hinzufügen“ unten hinzu und die Geräte, denen du folgen willst, im Tab „Entdecken“.",
+        "es": "Introduzca la dirección de Prometheus, y la de Alertmanager para silenciar alertas. Después añada sus consultas PromQL con «Añadir una consulta» más abajo, y los dispositivos que quiera seguir desde la pestaña Descubrir."
       },
       "links": [
         {
-          "url": "https://open-meteo.com/en/docs",
-          "label": { "en": "Open-Meteo documentation", "fr": "Documentation Open-Meteo" }
+          "url": "https://github.com/guim31/gladys-prometheus/blob/main/docs/en.md",
+          "label": {
+            "en": "Setup guide",
+            "fr": "Guide d'installation",
+            "de": "Installationsanleitung",
+            "es": "Guía de instalación"
+          }
+        },
+        {
+          "url": "https://prometheus.io/docs/prometheus/latest/querying/basics/",
+          "label": {
+            "en": "PromQL basics",
+            "fr": "Les bases de PromQL",
+            "de": "PromQL-Grundlagen",
+            "es": "Conceptos básicos de PromQL"
+          }
         }
       ]
     },
     {
-      "key": "latitude",
-      "type": "number",
-      "label": { "en": "Latitude", "fr": "Latitude" },
-      "description": {
-        "en": "Latitude used for the demo weather sensor.",
-        "fr": "Latitude utilisée par le capteur météo de démonstration."
+      "key": "prometheus_url",
+      "type": "string",
+      "label": {
+        "en": "Prometheus address",
+        "fr": "Adresse de Prometheus",
+        "de": "Adresse von Prometheus",
+        "es": "Dirección de Prometheus"
       },
-      "placeholder": { "en": "e.g. 48.8566", "fr": "ex. 48.8566" },
-      "required": true,
-      "default": 48.8566,
-      "min": -90,
-      "max": 90
+      "description": {
+        "en": "The address you open Prometheus with (port 9090 by default).",
+        "fr": "L'adresse avec laquelle vous ouvrez Prometheus (port 9090 par défaut).",
+        "de": "Die Adresse, mit der du Prometheus öffnest (standardmäßig Port 9090).",
+        "es": "La dirección con la que abre Prometheus (puerto 9090 por defecto)."
+      },
+      "placeholder": {
+        "en": "e.g. http://192.168.1.2:9090",
+        "fr": "ex. http://192.168.1.2:9090",
+        "de": "z. B. http://192.168.1.2:9090",
+        "es": "p. ej. http://192.168.1.2:9090"
+      },
+      "required": true
     },
     {
-      "key": "longitude",
-      "type": "number",
-      "label": { "en": "Longitude", "fr": "Longitude" },
-      "description": {
-        "en": "Longitude used for the demo weather sensor.",
-        "fr": "Longitude utilisée par le capteur météo de démonstration."
+      "key": "alertmanager_url",
+      "type": "string",
+      "label": {
+        "en": "Alertmanager address (optional)",
+        "fr": "Adresse d'Alertmanager (facultatif)",
+        "de": "Adresse von Alertmanager (optional)",
+        "es": "Dirección de Alertmanager (opcional)"
       },
-      "placeholder": { "en": "e.g. 2.3522", "fr": "ex. 2.3522" },
-      "required": true,
-      "default": 2.3522,
-      "min": -180,
-      "max": 180
+      "description": {
+        "en": "Empty: the alerts are read from Prometheus, without silences.",
+        "fr": "Vide : les alertes sont lues dans Prometheus, sans silences.",
+        "de": "Leer: Die Alarme werden aus Prometheus gelesen, ohne Stummschaltungen.",
+        "es": "Vacío: las alertas se leen de Prometheus, sin silencios."
+      },
+      "placeholder": {
+        "en": "e.g. http://192.168.1.2:9093",
+        "fr": "ex. http://192.168.1.2:9093",
+        "de": "z. B. http://192.168.1.2:9093",
+        "es": "p. ej. http://192.168.1.2:9093"
+      },
+      "required": false
     },
     {
-      "key": "unit",
+      "key": "auth",
+      "type": "section",
+      "label": {
+        "en": "Authentication (optional)",
+        "fr": "Authentification (facultatif)",
+        "de": "Authentifizierung (optional)",
+        "es": "Autenticación (opcional)"
+      },
+      "description": {
+        "en": "Only when a reverse proxy protects Prometheus and Alertmanager: the same credentials are sent to both.",
+        "fr": "Seulement si un proxy inverse protège Prometheus et Alertmanager : les mêmes identifiants sont envoyés aux deux.",
+        "de": "Nur wenn ein Reverse-Proxy Prometheus und Alertmanager schützt: Dieselben Zugangsdaten gehen an beide.",
+        "es": "Solo si un proxy inverso protege Prometheus y Alertmanager: se envían las mismas credenciales a ambos."
+      }
+    },
+    {
+      "key": "username",
+      "type": "string",
+      "label": {
+        "en": "User (Basic)",
+        "fr": "Utilisateur (Basic)",
+        "de": "Benutzer (Basic)",
+        "es": "Usuario (Basic)"
+      },
+      "required": false
+    },
+    {
+      "key": "password",
+      "type": "secret",
+      "label": {
+        "en": "Password (Basic)",
+        "fr": "Mot de passe (Basic)",
+        "de": "Passwort (Basic)",
+        "es": "Contraseña (Basic)"
+      },
+      "required": false
+    },
+    {
+      "key": "bearer_token",
+      "type": "secret",
+      "label": {
+        "en": "Bearer token",
+        "fr": "Jeton Bearer",
+        "de": "Bearer-Token",
+        "es": "Token Bearer"
+      },
+      "description": {
+        "en": "Used instead of the user and password when filled.",
+        "fr": "Utilisé à la place de l'utilisateur et du mot de passe s'il est rempli.",
+        "de": "Wird statt Benutzer und Passwort verwendet, wenn ausgefüllt.",
+        "es": "Se usa en lugar del usuario y la contraseña si se rellena."
+      },
+      "required": false
+    },
+    {
+      "key": "options",
+      "type": "section",
+      "label": {
+        "en": "Options",
+        "fr": "Options",
+        "de": "Optionen",
+        "es": "Opciones"
+      }
+    },
+    {
+      "key": "poll_interval",
       "type": "select",
-      "label": { "en": "Temperature unit", "fr": "Unité de température" },
+      "label": {
+        "en": "Refresh interval",
+        "fr": "Intervalle de rafraîchissement",
+        "de": "Aktualisierungsintervall",
+        "es": "Intervalo de actualización"
+      },
+      "description": {
+        "en": "How often Prometheus is read: one request per query, plus the alerts.",
+        "fr": "Fréquence de lecture de Prometheus : une requête par requête PromQL, plus les alertes.",
+        "de": "Wie oft Prometheus gelesen wird: eine Anfrage pro Abfrage, dazu die Alarme.",
+        "es": "Con qué frecuencia se lee Prometheus: una petición por consulta, más las alertas."
+      },
       "required": false,
-      "default": "celsius",
+      "default": "30",
       "options": [
-        { "value": "celsius", "label": { "en": "Celsius", "fr": "Celsius" } },
-        { "value": "fahrenheit", "label": { "en": "Fahrenheit", "fr": "Fahrenheit" } }
+        {
+          "value": "15",
+          "label": {
+            "en": "15 seconds",
+            "fr": "15 secondes",
+            "de": "15 Sekunden",
+            "es": "15 segundos"
+          }
+        },
+        {
+          "value": "30",
+          "label": {
+            "en": "30 seconds",
+            "fr": "30 secondes",
+            "de": "30 Sekunden",
+            "es": "30 segundos"
+          }
+        },
+        {
+          "value": "60",
+          "label": {
+            "en": "1 minute",
+            "fr": "1 minute",
+            "de": "1 Minute",
+            "es": "1 minuto"
+          }
+        },
+        {
+          "value": "120",
+          "label": {
+            "en": "2 minutes",
+            "fr": "2 minutes",
+            "de": "2 Minuten",
+            "es": "2 minutos"
+          }
+        },
+        {
+          "value": "300",
+          "label": {
+            "en": "5 minutes",
+            "fr": "5 minutes",
+            "de": "5 Minuten",
+            "es": "5 minutos"
+          }
+        }
       ]
     },
     {
-      "key": "poll_frequency",
-      "type": "number",
-      "label": { "en": "Refresh interval (s)", "fr": "Intervalle de rafraîchissement (s)" },
+      "key": "allow_silence",
+      "type": "boolean",
+      "label": {
+        "en": "Allow silencing from scenes",
+        "fr": "Autoriser la mise en silence depuis les scènes",
+        "de": "Stummschalten aus Szenen erlauben",
+        "es": "Permitir silenciar desde escenas"
+      },
       "description": {
-        "en": "How often sensors are polled, in seconds (one minute minimum).",
-        "fr": "Fréquence d'interrogation des capteurs, en secondes (une minute minimum)."
+        "en": "Untick to turn off the \"Silence an alert\" scene action.",
+        "fr": "Décochez pour désactiver l'action de scène « Mettre une alerte en silence ».",
+        "de": "Deaktiviere es, um die Szenen-Aktion „Alarm stummschalten“ auszuschalten.",
+        "es": "Desmarque para desactivar la acción de escena «Silenciar una alerta»."
       },
       "required": false,
-      "default": 300,
-      "min": 60,
-      "max": 3600
+      "default": true
+    },
+    {
+      "key": "allow_self_signed",
+      "type": "boolean",
+      "label": {
+        "en": "Accept self-signed certificates",
+        "fr": "Accepter les certificats auto-signés",
+        "de": "Selbstsignierte Zertifikate akzeptieren",
+        "es": "Aceptar certificados autofirmados"
+      },
+      "description": {
+        "en": "Only for an https:// address whose certificate your browser does not trust either.",
+        "fr": "Seulement pour une adresse en https:// dont le certificat n'est pas reconnu par votre navigateur non plus.",
+        "de": "Nur für eine https://-Adresse, deren Zertifikat auch dein Browser nicht anerkennt.",
+        "es": "Solo para una dirección https:// cuyo certificado tampoco reconoce su navegador."
+      },
+      "required": false,
+      "default": false
+    },
+    {
+      "key": "language",
+      "type": "select",
+      "label": {
+        "en": "Language of the names",
+        "fr": "Langue des noms",
+        "de": "Sprache der Namen",
+        "es": "Idioma de los nombres"
+      },
+      "description": {
+        "en": "Language of the feature names (set when a device is added) and of the scene results.",
+        "fr": "Langue des noms des fonctionnalités (fixés à l'ajout d'un appareil) et des résultats de scène.",
+        "de": "Sprache der Funktionsnamen (beim Hinzufügen eines Geräts festgelegt) und der Szenen-Ergebnisse.",
+        "es": "Idioma de los nombres de las funciones (fijados al añadir un dispositivo) y de los resultados de escena."
+      },
+      "required": false,
+      "default": "fr",
+      "options": [
+        {
+          "value": "en",
+          "label": {
+            "en": "English",
+            "fr": "Anglais",
+            "de": "Englisch",
+            "es": "Inglés"
+          }
+        },
+        {
+          "value": "fr",
+          "label": {
+            "en": "French",
+            "fr": "Français",
+            "de": "Französisch",
+            "es": "Francés"
+          }
+        },
+        {
+          "value": "de",
+          "label": {
+            "en": "German",
+            "fr": "Allemand",
+            "de": "Deutsch",
+            "es": "Alemán"
+          }
+        },
+        {
+          "value": "es",
+          "label": {
+            "en": "Spanish",
+            "fr": "Espagnol",
+            "de": "Spanisch",
+            "es": "Español"
+          }
+        }
+      ]
     }
   ],
   "actions": [
     {
-      "key": "test_weather",
-      "label": { "en": "Test the weather provider", "fr": "Tester le fournisseur météo" },
-      "timeout_seconds": 30
+      "key": "test_connection",
+      "label": {
+        "en": "Test the connection",
+        "fr": "Tester la connexion",
+        "de": "Verbindung testen",
+        "es": "Probar la conexión"
+      },
+      "timeout_seconds": 60
     },
     {
-      "key": "identify",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
+      "key": "add_query",
+      "label": {
+        "en": "Add a query",
+        "fr": "Ajouter une requête",
+        "de": "Abfrage hinzufügen",
+        "es": "Añadir una consulta"
+      },
+      "description": {
+        "en": "One device per query, one feature per series. The same name again replaces the query.",
+        "fr": "Un appareil par requête, une fonctionnalité par série. Le même nom remplace la requête.",
+        "de": "Ein Gerät pro Abfrage, eine Funktion pro Serie. Derselbe Name ersetzt die Abfrage.",
+        "es": "Un dispositivo por consulta, una función por serie. El mismo nombre sustituye la consulta."
+      },
+      "timeout_seconds": 30,
       "fields": [
         {
-          "key": "device",
+          "key": "name",
+          "type": "string",
+          "label": {
+            "en": "Name",
+            "fr": "Nom",
+            "de": "Name",
+            "es": "Nombre"
+          },
+          "placeholder": {
+            "en": "e.g. NAS temperature",
+            "fr": "ex. Température du NAS",
+            "de": "z. B. NAS-Temperatur",
+            "es": "p. ej. Temperatura del NAS"
+          }
+        },
+        {
+          "key": "promql",
+          "type": "string",
+          "label": {
+            "en": "PromQL expression",
+            "fr": "Expression PromQL",
+            "de": "PromQL-Ausdruck",
+            "es": "Expresión PromQL"
+          },
+          "placeholder": {
+            "en": "e.g. node_hwmon_temp_celsius",
+            "fr": "ex. node_hwmon_temp_celsius",
+            "de": "z. B. node_hwmon_temp_celsius",
+            "es": "p. ej. node_hwmon_temp_celsius"
+          }
+        },
+        {
+          "key": "type",
           "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
-          "required": true
+          "label": {
+            "en": "Type",
+            "fr": "Type",
+            "de": "Typ",
+            "es": "Tipo"
+          },
+          "description": {
+            "en": "Empty: Number (no unit).",
+            "fr": "Vide : Nombre (sans unité).",
+            "de": "Leer: Zahl (ohne Einheit).",
+            "es": "Vacío: Número (sin unidad)."
+          },
+          "options": [
+            {
+              "value": "number",
+              "label": {
+                "en": "Number (no unit)",
+                "fr": "Nombre (sans unité)",
+                "de": "Zahl (ohne Einheit)",
+                "es": "Número (sin unidad)"
+              }
+            },
+            {
+              "value": "temperature",
+              "label": {
+                "en": "Temperature (°C)",
+                "fr": "Température (°C)",
+                "de": "Temperatur (°C)",
+                "es": "Temperatura (°C)"
+              }
+            },
+            {
+              "value": "percent",
+              "label": {
+                "en": "Percentage (%)",
+                "fr": "Pourcentage (%)",
+                "de": "Prozent (%)",
+                "es": "Porcentaje (%)"
+              }
+            },
+            {
+              "value": "power",
+              "label": {
+                "en": "Power (W)",
+                "fr": "Puissance (W)",
+                "de": "Leistung (W)",
+                "es": "Potencia (W)"
+              }
+            },
+            {
+              "value": "energy",
+              "label": {
+                "en": "Energy (kWh)",
+                "fr": "Énergie (kWh)",
+                "de": "Energie (kWh)",
+                "es": "Energía (kWh)"
+              }
+            },
+            {
+              "value": "bytes_per_second",
+              "label": {
+                "en": "Data rate (bytes/s)",
+                "fr": "Débit (octets/s)",
+                "de": "Datenrate (Bytes/s)",
+                "es": "Tasa de datos (bytes/s)"
+              }
+            },
+            {
+              "value": "bytes",
+              "label": {
+                "en": "Size (bytes)",
+                "fr": "Taille (octets)",
+                "de": "Größe (Bytes)",
+                "es": "Tamaño (bytes)"
+              }
+            },
+            {
+              "value": "seconds",
+              "label": {
+                "en": "Duration (seconds)",
+                "fr": "Durée (secondes)",
+                "de": "Dauer (Sekunden)",
+                "es": "Duración (segundos)"
+              }
+            },
+            {
+              "value": "binary",
+              "label": {
+                "en": "On/off (0 or 1)",
+                "fr": "Binaire (0 ou 1)",
+                "de": "Binär (0 oder 1)",
+                "es": "Binario (0 o 1)"
+              }
+            }
+          ]
+        },
+        {
+          "key": "label",
+          "type": "string",
+          "label": {
+            "en": "Label naming the series (optional)",
+            "fr": "Étiquette qui nomme les séries (facultatif)",
+            "de": "Label, das die Serien benennt (optional)",
+            "es": "Etiqueta que nombra las series (opcional)"
+          },
+          "description": {
+            "en": "Empty: the labels that differ from one series to the other.",
+            "fr": "Vide : les étiquettes qui changent d'une série à l'autre.",
+            "de": "Leer: die Labels, die sich von Serie zu Serie unterscheiden.",
+            "es": "Vacío: las etiquetas que cambian de una serie a otra."
+          },
+          "placeholder": {
+            "en": "e.g. instance",
+            "fr": "ex. instance",
+            "de": "z. B. instance",
+            "es": "p. ej. instance"
+          }
+        }
+      ]
+    },
+    {
+      "key": "remove_query",
+      "label": {
+        "en": "Remove a query",
+        "fr": "Supprimer une requête",
+        "de": "Abfrage entfernen",
+        "es": "Eliminar una consulta"
+      },
+      "description": {
+        "en": "Its device stays in Gladys without new values: delete it there.",
+        "fr": "Son appareil reste dans Gladys sans nouvelles valeurs : supprimez-le là.",
+        "de": "Sein Gerät bleibt ohne neue Werte in Gladys: Lösche es dort.",
+        "es": "Su dispositivo permanece en Gladys sin valores nuevos: elimínelo allí."
+      },
+      "timeout_seconds": 30,
+      "fields": [
+        {
+          "key": "name",
+          "type": "string",
+          "label": {
+            "en": "Name",
+            "fr": "Nom",
+            "de": "Name",
+            "es": "Nombre"
+          }
         }
       ]
     }
   ],
   "scene_triggers": [
     {
-      "key": "motion_detected",
-      "label": { "en": "Motion detected", "fr": "Mouvement détecté" },
+      "key": "alert_firing",
+      "label": {
+        "en": "An alert fires",
+        "fr": "Une alerte se déclenche",
+        "de": "Ein Alarm löst aus",
+        "es": "Salta una alerta"
+      },
       "description": {
-        "en": "A demo motion sensor saw a person or an animal move.",
-        "fr": "Un détecteur de démonstration a vu bouger une personne ou un animal."
+        "en": "A new firing alert, in Alertmanager or Prometheus (silenced alerts left out).",
+        "fr": "Une nouvelle alerte active, dans Alertmanager ou Prometheus (hors alertes en silence).",
+        "de": "Ein neuer aktiver Alarm in Alertmanager oder Prometheus (stummgeschaltete ausgenommen).",
+        "es": "Una nueva alerta activa, en Alertmanager o Prometheus (sin las alertas silenciadas)."
       },
       "fields": [
         {
-          "key": "device",
-          "type": "select",
-          "source": "devices",
-          "label": { "en": "Sensor", "fr": "Détecteur" }
+          "key": "alertname",
+          "type": "string",
+          "label": {
+            "en": "Alert name (empty: any)",
+            "fr": "Nom de l'alerte (vide : n'importe laquelle)",
+            "de": "Alarmname (leer: beliebig)",
+            "es": "Nombre de la alerta (vacío: cualquiera)"
+          },
+          "description": {
+            "en": "Exactly as in Prometheus, e.g. TargetDown.",
+            "fr": "Exactement comme dans Prometheus, ex. TargetDown.",
+            "de": "Genau wie in Prometheus, z. B. TargetDown.",
+            "es": "Exactamente como en Prometheus, p. ej. TargetDown."
+          },
+          "required": false
         },
         {
-          "key": "target",
+          "key": "severity",
           "type": "multi_select",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" },
+          "label": {
+            "en": "Severities (empty: any)",
+            "fr": "Sévérités (vide : n'importe laquelle)",
+            "de": "Schweregrade (leer: beliebig)",
+            "es": "Gravedades (vacío: cualquiera)"
+          },
+          "description": {
+            "en": "From the severity label: critical, error and page are Critical; warning is Warning.",
+            "fr": "D'après l'étiquette severity : critical, error et page sont Critique ; warning est Avertissement.",
+            "de": "Nach dem Label severity: critical, error und page sind Kritisch; warning ist Warnung.",
+            "es": "Según la etiqueta severity: critical, error y page son Crítica; warning es Advertencia."
+          },
           "options": [
-            { "value": "person", "label": { "en": "Person", "fr": "Personne" } },
-            { "value": "animal", "label": { "en": "Animal", "fr": "Animal" } }
+            {
+              "value": "critical",
+              "label": {
+                "en": "Critical",
+                "fr": "Critique",
+                "de": "Kritisch",
+                "es": "Crítica"
+              }
+            },
+            {
+              "value": "warning",
+              "label": {
+                "en": "Warning",
+                "fr": "Avertissement",
+                "de": "Warnung",
+                "es": "Advertencia"
+              }
+            },
+            {
+              "value": "info",
+              "label": {
+                "en": "Info",
+                "fr": "Info",
+                "de": "Info",
+                "es": "Info"
+              }
+            },
+            {
+              "value": "other",
+              "label": {
+                "en": "Other",
+                "fr": "Autre",
+                "de": "Andere",
+                "es": "Otra"
+              }
+            }
           ]
         }
       ],
       "variables": [
         {
-          "key": "target",
+          "key": "alertname",
           "type": "string",
-          "label": { "en": "What moved", "fr": "Ce qui a bougé" }
+          "label": {
+            "en": "Alert name",
+            "fr": "Nom de l'alerte",
+            "de": "Alarmname",
+            "es": "Nombre de la alerta"
+          }
+        },
+        {
+          "key": "severity_name",
+          "type": "string",
+          "label": {
+            "en": "Severity",
+            "fr": "Sévérité",
+            "de": "Schweregrad",
+            "es": "Gravedad"
+          }
+        },
+        {
+          "key": "severity",
+          "type": "string",
+          "label": {
+            "en": "Severity key (critical, warning, info, other)",
+            "fr": "Clé de sévérité (critical, warning, info, other)",
+            "de": "Schweregrad-Schlüssel (critical, warning, info, other)",
+            "es": "Clave de gravedad (critical, warning, info, other)"
+          }
+        },
+        {
+          "key": "severity_label",
+          "type": "string",
+          "label": {
+            "en": "Severity label, as in Prometheus",
+            "fr": "Étiquette severity, telle que dans Prometheus",
+            "de": "Label severity, wie in Prometheus",
+            "es": "Etiqueta severity, como en Prometheus"
+          }
+        },
+        {
+          "key": "summary",
+          "type": "string",
+          "label": {
+            "en": "Summary",
+            "fr": "Résumé",
+            "de": "Zusammenfassung",
+            "es": "Resumen"
+          }
+        },
+        {
+          "key": "instance",
+          "type": "string",
+          "label": {
+            "en": "Instance",
+            "fr": "Instance",
+            "de": "Instanz",
+            "es": "Instancia"
+          }
+        },
+        {
+          "key": "labels",
+          "type": "string",
+          "label": {
+            "en": "All labels (name=value)",
+            "fr": "Toutes les étiquettes (nom=valeur)",
+            "de": "Alle Labels (name=wert)",
+            "es": "Todas las etiquetas (nombre=valor)"
+          }
+        },
+        {
+          "key": "fingerprint",
+          "type": "string",
+          "label": {
+            "en": "Alert fingerprint",
+            "fr": "Empreinte de l'alerte",
+            "de": "Fingerabdruck des Alarms",
+            "es": "Huella de la alerta"
+          }
+        }
+      ]
+    },
+    {
+      "key": "alert_resolved",
+      "label": {
+        "en": "An alert is resolved",
+        "fr": "Une alerte est résolue",
+        "de": "Ein Alarm ist behoben",
+        "es": "Se resuelve una alerta"
+      },
+      "description": {
+        "en": "An alert announced by \"An alert fires\" stops firing.",
+        "fr": "Une alerte annoncée par « Une alerte se déclenche » cesse.",
+        "de": "Ein von „Ein Alarm löst aus“ gemeldeter Alarm hört auf.",
+        "es": "Una alerta anunciada por «Salta una alerta» deja de estar activa."
+      },
+      "fields": [
+        {
+          "key": "alertname",
+          "type": "string",
+          "label": {
+            "en": "Alert name (empty: any)",
+            "fr": "Nom de l'alerte (vide : n'importe laquelle)",
+            "de": "Alarmname (leer: beliebig)",
+            "es": "Nombre de la alerta (vacío: cualquiera)"
+          },
+          "description": {
+            "en": "Exactly as in Prometheus, e.g. TargetDown.",
+            "fr": "Exactement comme dans Prometheus, ex. TargetDown.",
+            "de": "Genau wie in Prometheus, z. B. TargetDown.",
+            "es": "Exactamente como en Prometheus, p. ej. TargetDown."
+          },
+          "required": false
+        },
+        {
+          "key": "severity",
+          "type": "multi_select",
+          "label": {
+            "en": "Severities (empty: any)",
+            "fr": "Sévérités (vide : n'importe laquelle)",
+            "de": "Schweregrade (leer: beliebig)",
+            "es": "Gravedades (vacío: cualquiera)"
+          },
+          "description": {
+            "en": "From the severity label: critical, error and page are Critical; warning is Warning.",
+            "fr": "D'après l'étiquette severity : critical, error et page sont Critique ; warning est Avertissement.",
+            "de": "Nach dem Label severity: critical, error und page sind Kritisch; warning ist Warnung.",
+            "es": "Según la etiqueta severity: critical, error y page son Crítica; warning es Advertencia."
+          },
+          "options": [
+            {
+              "value": "critical",
+              "label": {
+                "en": "Critical",
+                "fr": "Critique",
+                "de": "Kritisch",
+                "es": "Crítica"
+              }
+            },
+            {
+              "value": "warning",
+              "label": {
+                "en": "Warning",
+                "fr": "Avertissement",
+                "de": "Warnung",
+                "es": "Advertencia"
+              }
+            },
+            {
+              "value": "info",
+              "label": {
+                "en": "Info",
+                "fr": "Info",
+                "de": "Info",
+                "es": "Info"
+              }
+            },
+            {
+              "value": "other",
+              "label": {
+                "en": "Other",
+                "fr": "Autre",
+                "de": "Andere",
+                "es": "Otra"
+              }
+            }
+          ]
+        }
+      ],
+      "variables": [
+        {
+          "key": "alertname",
+          "type": "string",
+          "label": {
+            "en": "Alert name",
+            "fr": "Nom de l'alerte",
+            "de": "Alarmname",
+            "es": "Nombre de la alerta"
+          }
+        },
+        {
+          "key": "severity_name",
+          "type": "string",
+          "label": {
+            "en": "Severity",
+            "fr": "Sévérité",
+            "de": "Schweregrad",
+            "es": "Gravedad"
+          }
+        },
+        {
+          "key": "severity",
+          "type": "string",
+          "label": {
+            "en": "Severity key (critical, warning, info, other)",
+            "fr": "Clé de sévérité (critical, warning, info, other)",
+            "de": "Schweregrad-Schlüssel (critical, warning, info, other)",
+            "es": "Clave de gravedad (critical, warning, info, other)"
+          }
+        },
+        {
+          "key": "severity_label",
+          "type": "string",
+          "label": {
+            "en": "Severity label, as in Prometheus",
+            "fr": "Étiquette severity, telle que dans Prometheus",
+            "de": "Label severity, wie in Prometheus",
+            "es": "Etiqueta severity, como en Prometheus"
+          }
+        },
+        {
+          "key": "summary",
+          "type": "string",
+          "label": {
+            "en": "Summary",
+            "fr": "Résumé",
+            "de": "Zusammenfassung",
+            "es": "Resumen"
+          }
+        },
+        {
+          "key": "instance",
+          "type": "string",
+          "label": {
+            "en": "Instance",
+            "fr": "Instance",
+            "de": "Instanz",
+            "es": "Instancia"
+          }
+        },
+        {
+          "key": "labels",
+          "type": "string",
+          "label": {
+            "en": "All labels (name=value)",
+            "fr": "Toutes les étiquettes (nom=valeur)",
+            "de": "Alle Labels (name=wert)",
+            "es": "Todas las etiquetas (nombre=valor)"
+          }
+        },
+        {
+          "key": "fingerprint",
+          "type": "string",
+          "label": {
+            "en": "Alert fingerprint",
+            "fr": "Empreinte de l'alerte",
+            "de": "Fingerabdruck des Alarms",
+            "es": "Huella de la alerta"
+          }
+        },
+        {
+          "key": "duration_minutes",
+          "type": "number",
+          "label": {
+            "en": "Duration (minutes)",
+            "fr": "Durée (minutes)",
+            "de": "Dauer (Minuten)",
+            "es": "Duración (minutos)"
+          }
         }
       ]
     }
   ],
   "scene_actions": [
     {
-      "key": "identify_device",
-      "label": { "en": "Identify a device", "fr": "Identifier un appareil" },
-      "description": {
-        "en": "Make a device signal itself (the demo light blinks).",
-        "fr": "Fait se signaler un appareil (la lampe de démonstration clignote)."
+      "key": "silence_alert",
+      "label": {
+        "en": "Silence an alert",
+        "fr": "Mettre une alerte en silence",
+        "de": "Alarm stummschalten",
+        "es": "Silenciar una alerta"
       },
-      "timeout_seconds": 15,
+      "description": {
+        "en": "Creates a silence in Alertmanager for an alert name, and other labels if given, for a while.",
+        "fr": "Crée un silence dans Alertmanager pour un nom d'alerte, et d'autres étiquettes si besoin, pour un temps.",
+        "de": "Erstellt in Alertmanager eine Stummschaltung für einen Alarmnamen, ggf. mit weiteren Labels, für eine Weile.",
+        "es": "Crea un silencio en Alertmanager para un nombre de alerta, y otras etiquetas si hace falta, por un tiempo."
+      },
+      "timeout_seconds": 30,
       "fields": [
         {
-          "key": "device",
+          "key": "alertname",
+          "type": "string",
+          "label": {
+            "en": "Alert name",
+            "fr": "Nom de l'alerte",
+            "de": "Alarmname",
+            "es": "Nombre de la alerta"
+          },
+          "description": {
+            "en": "In a scene started by an alert, insert its name from the variables.",
+            "fr": "Dans une scène lancée par une alerte, insérez son nom depuis les variables.",
+            "de": "In einer durch einen Alarm gestarteten Szene füge seinen Namen aus den Variablen ein.",
+            "es": "En una escena iniciada por una alerta, inserte su nombre desde las variables."
+          },
+          "required": true
+        },
+        {
+          "key": "labels",
+          "type": "string",
+          "label": {
+            "en": "Other labels (optional)",
+            "fr": "Autres étiquettes (facultatif)",
+            "de": "Weitere Labels (optional)",
+            "es": "Otras etiquetas (opcional)"
+          },
+          "description": {
+            "en": "name=value, separated by commas, e.g. instance=nas:9100.",
+            "fr": "nom=valeur, séparés par des virgules, ex. instance=nas:9100.",
+            "de": "name=wert, durch Kommas getrennt, z. B. instance=nas:9100.",
+            "es": "nombre=valor, separados por comas, p. ej. instance=nas:9100."
+          },
+          "required": false
+        },
+        {
+          "key": "duration",
           "type": "select",
-          "source": "devices",
-          "label": { "en": "Device", "fr": "Appareil" },
+          "label": {
+            "en": "Duration",
+            "fr": "Durée",
+            "de": "Dauer",
+            "es": "Duración"
+          },
+          "required": true,
+          "default": "60",
+          "options": [
+            {
+              "value": "15",
+              "label": {
+                "en": "15 minutes",
+                "fr": "15 minutes",
+                "de": "15 Minuten",
+                "es": "15 minutos"
+              }
+            },
+            {
+              "value": "30",
+              "label": {
+                "en": "30 minutes",
+                "fr": "30 minutes",
+                "de": "30 Minuten",
+                "es": "30 minutos"
+              }
+            },
+            {
+              "value": "60",
+              "label": {
+                "en": "1 hour",
+                "fr": "1 heure",
+                "de": "1 Stunde",
+                "es": "1 hora"
+              }
+            },
+            {
+              "value": "120",
+              "label": {
+                "en": "2 hours",
+                "fr": "2 heures",
+                "de": "2 Stunden",
+                "es": "2 horas"
+              }
+            },
+            {
+              "value": "240",
+              "label": {
+                "en": "4 hours",
+                "fr": "4 heures",
+                "de": "4 Stunden",
+                "es": "4 horas"
+              }
+            },
+            {
+              "value": "480",
+              "label": {
+                "en": "8 hours",
+                "fr": "8 heures",
+                "de": "8 Stunden",
+                "es": "8 horas"
+              }
+            },
+            {
+              "value": "720",
+              "label": {
+                "en": "12 hours",
+                "fr": "12 heures",
+                "de": "12 Stunden",
+                "es": "12 horas"
+              }
+            },
+            {
+              "value": "1440",
+              "label": {
+                "en": "1 day",
+                "fr": "1 jour",
+                "de": "1 Tag",
+                "es": "1 día"
+              }
+            },
+            {
+              "value": "10080",
+              "label": {
+                "en": "1 week",
+                "fr": "1 semaine",
+                "de": "1 Woche",
+                "es": "1 semana"
+              }
+            }
+          ]
+        },
+        {
+          "key": "comment",
+          "type": "string",
+          "label": {
+            "en": "Comment (optional)",
+            "fr": "Commentaire (facultatif)",
+            "de": "Kommentar (optional)",
+            "es": "Comentario (opcional)"
+          },
+          "description": {
+            "en": "Empty: \"Silenced from Gladys\".",
+            "fr": "Vide : « Mis en silence depuis Gladys ».",
+            "de": "Leer: „In Gladys stummgeschaltet“.",
+            "es": "Vacío: «Silenciado desde Gladys»."
+          },
+          "required": false
+        }
+      ],
+      "outputs": [
+        {
+          "key": "silence_id",
+          "type": "string",
+          "label": {
+            "en": "Silence id",
+            "fr": "Identifiant du silence",
+            "de": "Stummschaltungs-ID",
+            "es": "Id. del silencio"
+          }
+        },
+        {
+          "key": "alerts_silenced",
+          "type": "number",
+          "label": {
+            "en": "Firing alerts silenced",
+            "fr": "Alertes actives mises en silence",
+            "de": "Stummgeschaltete aktive Alarme",
+            "es": "Alertas activas silenciadas"
+          }
+        }
+      ]
+    },
+    {
+      "key": "get_alerts",
+      "label": {
+        "en": "Read the alerts",
+        "fr": "Lire les alertes",
+        "de": "Alarme lesen",
+        "es": "Leer las alertas"
+      },
+      "description": {
+        "en": "Counts and lists the firing alerts, for the next actions (a message, a condition).",
+        "fr": "Compte et liste les alertes actives, pour les actions suivantes (un message, une condition).",
+        "de": "Zählt und listet die aktiven Alarme für die nächsten Aktionen (eine Nachricht, eine Bedingung).",
+        "es": "Cuenta y enumera las alertas activas, para las acciones siguientes (un mensaje, una condición)."
+      },
+      "timeout_seconds": 30,
+      "fields": [
+        {
+          "key": "severity",
+          "type": "select",
+          "label": {
+            "en": "Severity (empty: all)",
+            "fr": "Sévérité (vide : toutes)",
+            "de": "Schweregrad (leer: alle)",
+            "es": "Gravedad (vacío: todas)"
+          },
+          "required": false,
+          "options": [
+            {
+              "value": "critical",
+              "label": {
+                "en": "Critical",
+                "fr": "Critique",
+                "de": "Kritisch",
+                "es": "Crítica"
+              }
+            },
+            {
+              "value": "warning",
+              "label": {
+                "en": "Warning",
+                "fr": "Avertissement",
+                "de": "Warnung",
+                "es": "Advertencia"
+              }
+            },
+            {
+              "value": "info",
+              "label": {
+                "en": "Info",
+                "fr": "Info",
+                "de": "Info",
+                "es": "Info"
+              }
+            },
+            {
+              "value": "other",
+              "label": {
+                "en": "Other",
+                "fr": "Autre",
+                "de": "Andere",
+                "es": "Otra"
+              }
+            }
+          ]
+        }
+      ],
+      "outputs": [
+        {
+          "key": "count",
+          "type": "number",
+          "label": {
+            "en": "Firing alerts",
+            "fr": "Alertes actives",
+            "de": "Aktive Alarme",
+            "es": "Alertas activas"
+          }
+        },
+        {
+          "key": "critical",
+          "type": "number",
+          "label": {
+            "en": "Critical alerts",
+            "fr": "Alertes critiques",
+            "de": "Kritische Alarme",
+            "es": "Alertas críticas"
+          }
+        },
+        {
+          "key": "warning",
+          "type": "number",
+          "label": {
+            "en": "Warning alerts",
+            "fr": "Alertes avertissement",
+            "de": "Warnungen",
+            "es": "Alertas de advertencia"
+          }
+        },
+        {
+          "key": "highest_severity",
+          "type": "string",
+          "label": {
+            "en": "Highest severity",
+            "fr": "Sévérité la plus haute",
+            "de": "Höchster Schweregrad",
+            "es": "Gravedad más alta"
+          }
+        },
+        {
+          "key": "names",
+          "type": "string",
+          "label": {
+            "en": "Alerts (name and instance)",
+            "fr": "Alertes (nom et instance)",
+            "de": "Alarme (Name und Instanz)",
+            "es": "Alertas (nombre e instancia)"
+          }
+        }
+      ]
+    },
+    {
+      "key": "query_value",
+      "label": {
+        "en": "Read a PromQL value",
+        "fr": "Lire une valeur PromQL",
+        "de": "PromQL-Wert lesen",
+        "es": "Leer un valor PromQL"
+      },
+      "description": {
+        "en": "Runs a PromQL expression once and gives its value, without creating a device.",
+        "fr": "Exécute une expression PromQL une fois et donne sa valeur, sans créer d'appareil.",
+        "de": "Führt einen PromQL-Ausdruck einmal aus und liefert den Wert, ohne Gerät anzulegen.",
+        "es": "Ejecuta una expresión PromQL una vez y da su valor, sin crear un dispositivo."
+      },
+      "timeout_seconds": 30,
+      "fields": [
+        {
+          "key": "promql",
+          "type": "string",
+          "label": {
+            "en": "PromQL expression",
+            "fr": "Expression PromQL",
+            "de": "PromQL-Ausdruck",
+            "es": "Expresión PromQL"
+          },
           "required": true
         }
       ],
       "outputs": [
         {
-          "key": "signalled",
-          "type": "boolean",
-          "label": { "en": "Device signalled", "fr": "Appareil signalé" }
+          "key": "value",
+          "type": "number",
+          "label": {
+            "en": "Value (first series, 0 if none)",
+            "fr": "Valeur (première série, 0 si aucune)",
+            "de": "Wert (erste Serie, 0 wenn keine)",
+            "es": "Valor (primera serie, 0 si ninguna)"
+          }
+        },
+        {
+          "key": "series",
+          "type": "number",
+          "label": {
+            "en": "Number of series",
+            "fr": "Nombre de séries",
+            "de": "Anzahl der Serien",
+            "es": "Número de series"
+          }
+        },
+        {
+          "key": "text",
+          "type": "string",
+          "label": {
+            "en": "Values, as text",
+            "fr": "Valeurs, en texte",
+            "de": "Werte als Text",
+            "es": "Valores, como texto"
+          }
         }
       ]
     }
   ],
   "widgets": [
     {
-      "key": "demo_status",
-      "label": { "en": "Demo status", "fr": "État de la démo" },
-      "description": {
-        "en": "Live temperature and plug power, plug connection and observed location.",
-        "fr": "Température et puissance en direct, connexion de la prise, position observée."
+      "key": "alerts",
+      "label": {
+        "en": "Prometheus alerts",
+        "fr": "Alertes Prometheus",
+        "de": "Prometheus-Alarme",
+        "es": "Alertas de Prometheus"
       },
-      "icon": "activity",
-      "action_timeout_seconds": 15
+      "description": {
+        "en": "Firing alerts, the most severe first, and the silenced ones.",
+        "fr": "Alertes en cours, les plus graves d'abord, et celles en silence.",
+        "de": "Aktive Alarme, die schwersten zuerst, und die stummgeschalteten.",
+        "es": "Alertas activas, las más graves primero, y las silenciadas."
+      },
+      "icon": "bell",
+      "action_timeout_seconds": 30
     }
   ]
 }
