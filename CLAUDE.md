@@ -16,8 +16,8 @@ its only runtime dependency. It started from the official JavaScript template.
 ```bash
 npm install
 npm test                                  # node --test, the built-in runner
-node --test test/devices.test.js          # one file
-node --test --test-name-pattern "plug"    # tests whose name matches
+node --test test/hub.test.js              # one file
+node --test --test-name-pattern "widget"  # tests whose name matches
 npm run lint                              # ESLint
 npm run format:check                      # Prettier, as the CI runs it
 npm run format                            # Prettier, fix in place
@@ -31,16 +31,24 @@ pushing.
 ## Architecture
 
 ```
-index.js                          SDK wiring only: handlers registered before connect()
-src/devices/index.js              registry of the device blueprints + dispatch helpers
-src/devices/<type>.js             one device type per file (buildDevice, onPoll, onSetValue...)
+index.js                          SDK wiring only: src/app.js registers the handlers before connect()
+src/app.js                        every SDK handler -> the hub (also used by the tests)
+src/hub.js                        reading timer, queries, states (changes + heartbeat), scene events, views
+src/devices.js                    query and alerts devices, feature names (4 languages), values
+src/queries.js                    query types (category, unit, bounds), "Add a query" fields, ids
+src/prometheus/client.js          Prometheus /api/v1 and Alertmanager /api/v2 clients, error kinds
+src/prometheus/model.js           query results -> series, series names, alerts, severities, matchers
+src/prometheus/http.js            node:http/https (self-signed certificates on request)
 src/scenes.js                     scene action handlers (manifest `scene_actions`)
-src/widgets.js                    dashboard widget handlers (manifest `widgets`)
+src/widgets.js                    dashboard widget `alerts` (manifest `widgets`)
+src/texts.js                      connection, error, report, severity texts (4 languages)
 src/config.js                     DEFAULT_CONFIG (mirrors the manifest defaults) + normalization
-src/weather.js                    example driver (Open-Meteo)
-gladys-assistant-integration.json manifest: name, config_schema, actions, image...
-docs/en.md, docs/fr.md            user documentation, re-hosted by Gladys (mandatory)
+src/store.js                      /data/prometheus-state.json (queries, series names, alerts seen)
+src/logs.js                       repeated failures logged once, then once when they heal
+gladys-assistant-integration.json manifest: name, config_schema, actions, triggers, widget...
+docs/{en,fr,de,es}.md             user documentation, re-hosted by Gladys (en and fr mandatory)
 test/                             node --test, against the SDK's fake Gladys (integration-sdk/testing)
+                                  and helpers/fakePrometheus.js (real answers in test/fixtures/real)
 .github/scripts/release.mjs       release helpers (manifest bump, changelog), tested in test/
 ```
 
@@ -70,8 +78,9 @@ test/                             node --test, against the SDK's fake Gladys (in
   `type: "provider"`: 5.1.0). `test/manifest.test.js` ties the manifest to the
   code (defaults, action, scene and widget handlers): change both sides
   together.
-- **User-facing text** is bilingual (English and French): action messages,
-  manifest texts, and `docs/en.md` / `docs/fr.md`, kept in sync.
+- **User-facing text** exists in English, French, German and Spanish: action
+  messages, widget texts, feature names, manifest texts, and
+  `docs/{en,fr,de,es}.md`, kept in sync (`test/i18n.test.js`).
 - **Style.** Prettier formats, ESLint catches mistakes. Comments explain why,
   in English. Tests never touch the network.
 
@@ -233,3 +242,69 @@ long, et sur un « Sie »/« Ihr… » de politesse en allemand. Le store exige 
 - Docs `en`, `fr`, `de`, `es` avec les mêmes sections.
 - Chauffe, ouverture, sécurité : ne rien rendre pilotable « comme un thermostat » ou par un assistant
   vocal quand une erreur serait dangereuse (leçon d'OctoPrint).
+
+## Prometheus (propre à ce dépôt)
+
+- **API** : Prometheus `/api/v1` (`status/buildinfo` à chaque lecture, comme test de santé et
+  version ; `query` une fois par requête ; `alerts` sans Alertmanager), Alertmanager `/api/v2`
+  (`alerts`, `POST silences`). Ni l'un ni l'autre n'a d'authentification propre : Basic ou Bearer
+  pour un proxy inverse, les mêmes identifiants pour les deux serveurs, le Bearer l'emporte.
+- **Réponses réelles** (Prometheus 3.15.0, `test/fixtures/real`) : une PromQL qui ne se parse pas
+  = HTTP **400** `{status:"error", errorType:"bad_data"}` ; `0/0` = scalaire `"NaN"` (rien publié) ;
+  `"hello"` = `resultType: "string"` ; `up[1m]` = `matrix`. Les deux derniers sont refusés à
+  l'ajout. Un **503 avec un corps d'erreur de l'API** est un délai de requête de Prometheus, pas un
+  proxy : `client.js` le classe en erreur de requête, pas « injoignable ».
+- **Pas de champ liste dans la configuration** de Gladys : les requêtes s'ajoutent par l'action
+  `add_query` (comme les hôtes de gladys-ping-wol) et vivent dans `/data`. Le nom fait l'identité :
+  `queryId` = 12 hex du SHA-256 du nom (casse et espaces ignorés) ; ré-ajouter le même nom remplace
+  la requête sur le même appareil. Champs d'action ni `required` ni `default` (#3155) : le code
+  valide et répond un message dans les quatre langues (`AnswerError`), sans lever d'erreur.
+- **Séries** : identité = 12 hex du SHA-256 des étiquettes triées **sans `__name__`** (que `rate()`
+  retire). Identifiant de fonctionnalité = `<type>_<série>` : changer le type d'une requête donne de
+  nouvelles fonctionnalités, jamais un changement de catégorie sur un identifiant existant. Le nom
+  d'une série est fixé à sa première apparition et gardé dans `/data` ; une série absente garde sa
+  fonctionnalité (sinon la découverte la retirerait à chaque cible tombée). 20 séries par requête,
+  20 requêtes.
+- **Alertes** : empreinte maison (16 hex du SHA-256 des étiquettes triées), identique pour les deux
+  API, pour qu'ajouter Alertmanager ne ré-annonce rien… à périmètre égal : le périmètre (adresse de
+  la source) change, et le premier passage du nouveau périmètre est enregistré sans annonce.
+  Alertmanager ne rend pas les alertes résolues (`endsAt` passé) ; `status.state: "suppressed"` =
+  en silence ou inhibée : ni comptée ni annoncée, pas prise pour résolue. Sans Alertmanager, seules
+  les alertes `firing` de Prometheus comptent (`pending` attend son `for`). Mêmes règles d'annonce
+  que gladys-zabbix (marquée annoncée après acceptation par Gladys, plafond de 30 par lecture).
+  Différence avec gladys-zabbix (relecture du 18/10/2026) : une alerte vue au tout premier passage
+  est marquée `quiet` : ni son début ni **sa fin** ne sont annoncés (« résolue » sans « se
+  déclenche » surprenait).
+- **Erreurs** : seules les erreurs d'authentification, de TLS, de redirection et « pas une API
+  Prometheus » valent pour tout le serveur ; une requête refusée (tout `status: "error"`, y compris
+  l'`errorType` numérique de VictoriaMetrics) ou trop lente n'arrête ni les autres requêtes ni les
+  alertes. Serveur en panne : aucun état republié (pas de heartbeat de valeurs périmées).
+- **Budget d'états** : 240 par minute, réparti selon l'intervalle (60 par lecture à 15 s), les
+  valeurs publiées depuis le plus longtemps en premier (aucune fonctionnalité affamée avec 20 × 20
+  séries).
+- **Séries qui ne diffèrent que par `__name__`** (`{__name__=~"a|b"}`) : elles seules gardent
+  `__name__` dans leur identité, sinon elles se fondraient en une fonctionnalité.
+- **Sévérité** : étiquette libre ; `critical`/`error`/`page`/`high`… → `critical`, `warning`/`warn`/
+  `average`… → `warning`, `info`/`none`/`low`… → `info`, le reste `other`. La variable et le filtre
+  `severity` portent ce compartiment, `severity_label` la valeur brute.
+- **Silence** : correspondance exacte (`isEqual: true, isRegex: false`) sur `alertname` et les
+  étiquettes données ; durées fixes de 15 min à 1 semaine. Créer seulement : pas d'action pour lever
+  un silence (il finit seul, ou dans l'interface d'Alertmanager).
+
+## Vérifié sur un vrai Prometheus (18/10/2026)
+
+Image Docker de l'intégration avec les contraintes du bac à sable (`--cap-drop ALL --security-opt
+no-new-privileges --read-only --memory 256m --pids-limit 256`, volume `/data`, réseau en pont
+`gladys-test-prometheus`, aucun port publié) contre `quay.io/prometheus/prometheus` **3.15.0**,
+`alertmanager` **0.34.1** et `node-exporter`, avec une règle toujours active (`vector(1) > 0`), une
+cible injoignable et `up == 0` en critique.
+
+- Sans Gladys : reconnexion du SDK en backoff, pas de plantage, aucun secret dans les logs,
+  ~19 Mo au repos, arrêt propre sur SIGTERM (code 0).
+- Faux Gladys du SDK dans le conteneur verrouillé : requêtes à plusieurs séries, PromQL refusée
+  (400), vecteur de plage refusé, appareils et états, widget, « Lire les alertes », « Lire une
+  valeur PromQL », silence créé (alerte comptée « en silence ») puis expiré (`DELETE
+/api/v2/silence/<id>`, l'alerte revient sans être ré-annoncée) ; node-exporter arrêté puis
+  relancé : `alert_firing` puis `alert_resolved` (durée 1 min), état de la cible 1 → 0 → 1 ;
+  redémarrage sans doublon ; adresse d'Alertmanager à la place de Prometheus (`not_prometheus`,
+  404), hôte inconnu et `https://` sur un port HTTP (`unreachable`).

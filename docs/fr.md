@@ -1,67 +1,205 @@
-# Template de démonstration
+# Prometheus
 
-Ceci est la documentation utilisateur de l'intégration. Gladys ré-héberge ce
-fichier et affiche un lien **Documentation** permanent vers lui dans l'écran
-de configuration (dans la langue de l'utilisateur, avec l'anglais en repli) —
-c'est au moment de configurer que l'utilisateur en a le plus besoin. Gardez
-les courtes indications d'accueil dans les blocs `section` du `config_schema`
-du manifest ; mettez ici le pas-à-pas détaillé (captures d'écran, dépannage…).
+Amenez votre supervision [Prometheus](https://prometheus.io/) dans Gladys : les
+requêtes PromQL de votre choix deviennent des capteurs (une température,
+l'occupation d'un disque, la puissance d'une baie, des cibles joignables ou
+non), un appareil « Alertes Prometheus » compte les alertes actives par
+sévérité, et vos scènes réagissent quand une alerte se déclenche ou se résout
+— une lumière rouge pour une alerte critique, un message pour un disque plein.
+Avec [Alertmanager](https://prometheus.io/docs/alerting/latest/alertmanager/),
+une scène peut aussi mettre une alerte en silence pour un temps, et un widget
+du tableau de bord liste les alertes en cours.
 
-## Ce que vous obtenez
+L'intégration lit l'API HTTP de Prometheus (et d'Alertmanager) sur votre réseau
+local. Rien ne passe par un cloud.
 
-Six appareils de démonstration apparaissent après l'installation : une
-station météo (vraies données Open-Meteo), un interrupteur, une lampe
-variable, une prise connectée avec mesure de puissance, un détecteur de
-mouvement et une caméra.
+Testée contre un vrai Prometheus 3.15 et Alertmanager 0.34 (images Docker
+officielles, node-exporter, règles d'alerte, un silence créé puis expiré).
+Vos retours sont bienvenus :
+[github.com/guim31/gladys-prometheus/issues](https://github.com/guim31/gladys-prometheus/issues).
 
-## Configuration
+## Ce qu'il faut
 
-1. Ouvrez l'onglet **Configuration** de l'intégration.
-2. Renseignez la **latitude** et la **longitude** que la station météo de
-   démonstration doit observer (Paris par défaut), et choisissez votre unité
-   de température. L'**intervalle de rafraîchissement** règle la fréquence
-   de lecture de la station météo et de la puissance de la prise : toutes
-   les 5 minutes par défaut, toutes les minutes au plus.
-3. Enregistrez : les appareils apparaissent dans l'onglet **Découverte**,
-   prêts à être ajoutés.
+- Gladys Assistant 5.1.0 ou plus récent.
+- Prometheus 2.x ou 3.x, joignable depuis la machine de Gladys (port 9090 par
+  défaut). Les serveurs qui ont la même API de requête (Thanos Query,
+  VictoriaMetrics) devraient fonctionner aussi, sans test.
+- En option, Alertmanager (API v2, port 9093 par défaut) : il apporte les
+  silences, et l'action de scène « Mettre une alerte en silence ». Sans lui,
+  les alertes sont lues dans les règles d'alerte de Prometheus.
+- Aucun compte : Prometheus et Alertmanager n'ont pas d'authentification à
+  eux. Derrière un proxy inverse, un utilisateur et un mot de passe (Basic) ou
+  un jeton Bearer.
 
-Le réglage **Préférer la connexion locale** pilote la prise de
-démonstration : elle affiche en badge le canal réellement utilisé (local ou
-cloud), avec un point orange quand elle fonctionne en mode dégradé (local
-refusé, bascule cloud).
+## Pour commencer
 
-## Actions
+### 1. Configurer l'intégration
 
-- **Tester le fournisseur météo** — effectue une requête en direct vers
-  Open-Meteo et affiche la température et l'humidité actuelles sous le
-  bouton.
-- **Identifier un appareil** — choisissez un de vos appareils dans la liste
-  et il se signale (la lampe de démonstration « clignote » dans les logs).
+Dans Gladys, ouvrez la configuration de l'intégration :
 
-## Scènes
+- **Adresse de Prometheus** : l'adresse avec laquelle vous ouvrez Prometheus,
+  ex. `http://192.168.1.2:9090`. Un simple `192.168.1.2` prend le port 9090 ;
+  l'URL d'une page (`…/graph?g0.expr=…`) ou un préfixe de chemin
+  (`https://example.com/prometheus`) fonctionnent aussi.
+- **Adresse d'Alertmanager (facultatif)** : ex. `http://192.168.1.2:9093`.
+- **Utilisateur (Basic)**, **Mot de passe (Basic)**, **Jeton Bearer** :
+  seulement si un proxy inverse les demande. Les mêmes identifiants vont aux
+  deux serveurs ; le jeton l'emporte sur l'utilisateur et le mot de passe.
+- **Intervalle de rafraîchissement** : 30 secondes par défaut, de 15 secondes
+  à 5 minutes.
+- **Autoriser la mise en silence depuis les scènes** : décochez pour désactiver
+  l'action de silence.
+- **Accepter les certificats auto-signés** : seulement pour une adresse en
+  `https://` dont le certificat n'est pas reconnu par votre navigateur non plus.
+- **Langue des noms** : la langue des noms des fonctionnalités et des résultats
+  de scène.
 
-L'intégration ajoute ses propres cartes à l'éditeur de scènes (Gladys 5.1
-ou plus récent), dans la catégorie **Intégrations** :
+Cliquez sur **Tester la connexion** : la réponse donne la version de
+Prometheus, les requêtes et les alertes actives, ou ce qui ne va pas.
 
-- **Mouvement détecté** (déclencheur) — lance la scène quand un détecteur
-  de démonstration voit bouger quelque chose. Choisissez éventuellement le
-  détecteur et ce qui a bougé (personne, animal) ; laissés vides, toute
-  détection correspond. Les actions suivantes peuvent lire ce qui a bougé
-  avec `{{triggerEvent.data.target}}`.
-- **Identifier un appareil** (action) — fait se signaler l'appareil choisi.
-  Elle indique si l'appareil a pu se signaler, pour que les actions
-  suivantes puissent en dépendre.
+### 2. Ajouter vos requêtes
+
+Toujours dans la configuration, l'action **Ajouter une requête** demande :
+
+- **Nom** : le nom de l'appareil, ex. `Température du NAS`. Ajouter de nouveau
+  une requête du même nom la remplace (même appareil).
+- **Expression PromQL** : une requête instantanée dont le résultat est un
+  nombre par série, ex. `node_hwmon_temp_celsius{chip="platform_coretemp_0"}`,
+  ou
+  `100 - 100 * node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}`.
+  Un vecteur de plage (`up[5m]`) ou un texte est refusé : utilisez `rate()` ou
+  `avg_over_time()`.
+- **Type** : ce que Gladys affiche. Nombre (sans unité), Température (°C),
+  Pourcentage (%), Puissance (W), Énergie (kWh), Débit (octets/s),
+  Taille (octets), Durée (secondes), ou Binaire (0 ou 1) — ce dernier change toute
+  valeur non nulle en 1. Convertissez en PromQL si besoin (`/ 1000` pour des
+  kWh à partir de Wh).
+- **Étiquette qui nomme les séries (facultatif)** : quand la requête renvoie
+  plusieurs séries, chacune devient une fonctionnalité nommée d'après cette
+  étiquette (ex. `instance`). Vide : les étiquettes qui changent d'une série à
+  l'autre.
+
+La requête est d'abord vérifiée auprès de Prometheus : une erreur PromQL est
+signalée avec le message de Prometheus, et rien n'est enregistré.
+**Supprimer une requête** prend un nom.
+
+### 3. Ajouter les appareils
+
+Ouvrez l'onglet **Découverte** de l'intégration et ajoutez les appareils à
+suivre. Les déclencheurs de scène fonctionnent même si l'appareil des alertes
+n'est pas ajouté.
+
+## Les appareils
+
+**Un appareil par requête**, avec une fonctionnalité par série, 20 au plus. Le
+nom d'une fonctionnalité est fixé quand la série apparaît la première fois, et
+Gladys le garde une fois l'appareil ajouté. Une série apparue plus tard ajoute
+une fonctionnalité : Gladys propose alors **Mettre à jour** dans l'onglet
+Découverte. Une série qui disparaît garde sa fonctionnalité, sans nouvelle
+valeur.
+
+**Alertes Prometheus**, depuis Alertmanager quand son adresse est saisie,
+depuis les règles d'alerte de Prometheus sinon (alertes déclenchées seulement,
+pas celles en attente) :
+
+- **Alertes actives** : les alertes déclenchées, ni en silence ni inhibées ;
+- **Alertes critiques**, **Alertes avertissement**, **Alertes info** : les
+  mêmes, par sévérité ;
+- **Alertes en silence** : les alertes en silence ou inhibées dans
+  Alertmanager.
+
+La sévérité vient de l'étiquette `severity` de l'alerte : `critical`, `error`,
+`page`, `high` comptent comme critiques ; `warning`, `warn`, `average` comme
+avertissement ; `info`, `none`, `low` comme info. Toute autre valeur ne compte
+que dans le total.
+
+Un appareil est marqué injoignable tant que son serveur ne répond pas, et
+garde ses dernières valeurs.
 
 ## Tableau de bord
 
-Ajoutez le widget **État de la démo** à un tableau de bord : il affiche en
-direct la température de la station météo et la puissance de la prise du
-bureau, la connexion utilisée par la prise (en orange si dégradée) et la
-position observée. Son bouton **Identifier la lampe** fait se signaler la
-lampe de démonstration.
+Le widget **Alertes Prometheus** montre les alertes actives, critiques et en
+silence, puis une ligne par alerte active, les plus graves d'abord, avec son
+instance (ou son résumé). Le bouton **Actualiser** relit les serveurs.
+
+## Scènes
+
+### Déclencheurs
+
+- **Une alerte se déclenche** : une nouvelle alerte active. Filtres : le nom de
+  l'alerte, et les sévérités (vide : n'importe laquelle). Une alerte en
+  silence est annoncée à la fin de son silence, si elle est toujours active.
+- **Une alerte est résolue** : une alerte annoncée par le premier déclencheur
+  cesse. Mêmes filtres, plus sa durée en minutes.
+
+Les deux donnent à la scène : le nom de l'alerte, la sévérité (dans la langue
+des noms), la clé de sévérité (`critical`, `warning`, `info`, `other`),
+l'étiquette `severity` telle que dans Prometheus, le résumé, l'instance, toutes
+les étiquettes en texte, et l'empreinte de l'alerte.
+
+Les alertes déjà actives au tout premier démarrage de l'intégration ne sont pas
+annoncées. Une alerte qui se déclenche ou se résout pendant un redémarrage de
+Gladys ou de l'intégration est annoncée à son retour.
+
+### Actions
+
+- **Mettre une alerte en silence** (Alertmanager) : crée un silence pour un nom
+  d'alerte, et d'autres étiquettes si besoin (`instance=nas:9100, job=node`),
+  de 15 minutes à une semaine (1 heure par défaut). Résultats : l'identifiant
+  du silence, et les alertes actives qu'il a mises en silence. Donnez les autres étiquettes une à une
+  (`instance=…`), pas la variable qui les contient toutes. Désactivable
+  dans la configuration.
+- **Lire les alertes** : compte et liste les alertes actives, toutes ou d'une
+  sévérité. Résultats : alertes actives, critiques et avertissement, sévérité
+  la plus haute, et les alertes en texte (`TargetDown (nas:9100), DiskFull`).
+- **Lire une valeur PromQL** : exécute une expression une fois, sans créer
+  d'appareil. Résultats : la valeur de la première série (0 s'il n'y en a
+  aucune), le nombre de séries, et les valeurs en texte.
+
+### Idées de scènes
+
+- **Une alerte se déclenche**, sévérité Critique → passer la lumière de
+  l'entrée en rouge et envoyer « Alerte : {nom de l'alerte} sur {instance} »
+  sur votre téléphone.
+- **Une alerte est résolue** → envoyer « {nom de l'alerte} résolue après
+  {durée} minutes ».
+- Un bouton du tableau de bord « Je m'en occupe » → **Mettre une alerte en
+  silence** avec le nom de la dernière alerte, pour 2 heures.
+- Chaque matin → **Lire une valeur PromQL**
+  `sum(increase(node_network_receive_bytes_total[24h])) / 1e9` et envoyer
+  « Hier : {valeur} Go téléchargés ».
 
 ## Dépannage
 
-L'intégration journalise tout ce qu'elle fait : consultez les logs de
-l'intégration depuis l'interface Gladys (ou `docker logs` sur l'hôte) avec
-`LOG_LEVEL=debug` pour le détail complet.
+- **« ne répond pas »** : vérifiez l'adresse et le port depuis la machine de
+  Gladys (`curl http://192.168.1.2:9090/api/v1/status/buildinfo`). Gladys fait
+  tourner l'intégration dans un conteneur sur un réseau en pont : `localhost`
+  est le conteneur, pas la machine.
+- **« accès refusé »** : le proxy inverse refuse l'utilisateur, le mot de passe
+  ou le jeton.
+- **« certificat refusé »** : cochez **Accepter les certificats auto-signés**.
+- **« l'adresse redirige »** : saisissez l'adresse en `https://`, ou celle sans
+  la page de connexion d'un proxy.
+- **« pas d'API Prometheus ou Alertmanager à cette adresse »** : un autre
+  service répond là ; vérifiez le port.
+- **Une requête n'a pas de valeur** : **Tester la connexion** dit quelle
+  requête n'a aucune série pour le moment. Essayez-la dans l'interface web de
+  Prometheus (onglet Graph).
+- **Logs** : dans Gladys, la page de l'intégration montre ses logs. Ajoutez
+  `LOG_LEVEL=debug` pour voir chaque lecture.
+
+## Limites
+
+- 20 requêtes, et 20 séries par requête. Une requête s'exécute à chaque
+  rafraîchissement : gardez les requêtes lourdes pour des règles
+  d'enregistrement.
+- Les requêtes sont stockées dans le volume de données de l'intégration : la
+  réinstaller de zéro les perd (ajoutez-les de nouveau avec les mêmes noms :
+  mêmes appareils).
+- Les valeurs sont arrondies à deux décimales.
+- Les silences se créent mais ne se suppriment pas : ils finissent seuls, ou
+  dans l'interface d'Alertmanager.
+- Les filtres des déclencheurs ne comparent que des valeurs exactes : un seuil
+  relève d'un appareil de requête et d'une condition de scène.
+- Testée avec les outils de test du SDK de Gladys, pas encore dans une vraie
+  instance de Gladys : vos retours sont bienvenus.

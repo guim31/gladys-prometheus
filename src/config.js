@@ -1,45 +1,113 @@
 // -----------------------------------------------------------------------------
-// Integration configuration.
+// Integration configuration: defaults (they mirror the `default` values of the
+// manifest `config_schema`, see test/manifest.test.js) and normalization, so
+// the rest of the code never deals with strings, blanks or `undefined`.
 //
-// The configuration is filled in by the user in Gladys, from the `config_schema`
-// declared in `gladys-assistant-integration.json`. The SDK fetches it for you
-// (`gladys.getConfig()`) and notifies you of every change through
-// `gladys.onConfigUpdated()`.
+// One Prometheus server, and optionally its Alertmanager. The addresses typed
+// by the user can be the pages copied from the browser
+// (`http://192.0.2.5:9090/graph?g0.expr=…`, `http://192.0.2.5:9093/#/alerts`):
+// the API is next to them. A path prefix (`--web.route-prefix`, a reverse
+// proxy) is kept.
 //
-// This module only provides defaults and normalizes the received object, so the
-// rest of the code never has to deal with `undefined`.
+// The PromQL queries are not configuration fields (Gladys has no list field):
+// the "Add a query" action stores them under /data, see src/queries.js.
 // -----------------------------------------------------------------------------
 
-// Defaults: they MUST stay consistent with the `default` values declared in the
-// `config_schema` of the manifest.
+export const LANGUAGES = ['en', 'fr', 'de', 'es'];
+
+// Refresh intervals offered in the configuration, in seconds.
+export const POLL_INTERVALS = ['15', '30', '60', '120', '300'];
+
 export const DEFAULT_CONFIG = {
-  latitude: 48.8566, // Paris
-  longitude: 2.3522,
-  unit: 'celsius', // 'celsius' | 'fahrenheit'
-  // Seconds between two reads of the polled sensors. Gladys polls at most once
-  // a minute: slower intervals are applied by skipping polls (see
-  // createPoller in src/devices/index.js).
-  poll_frequency: 300,
-  // Reserved key (NOT in config_schema): because the manifest declares both
-  // 'local' and 'cloud' in its `transports` field, Gladys shows a standard
-  // "Prefer the local connection" toggle and sends the user's choice here.
-  // Read-only for the integration; defaults to true.
-  GLADYS_PREFER_LOCAL: true,
+  prometheus_url: '',
+  alertmanager_url: '',
+  username: '',
+  password: '',
+  bearer_token: '',
+  poll_interval: '30',
+  allow_silence: true,
+  allow_self_signed: false,
+  language: 'fr',
 };
 
+// The pages of the web interfaces, and the API itself: the base is before them.
+const UI_PAGES =
+  /\/(?:graph|query|alerts|rules|targets|service-discovery|status|flags|config|tsdb-status|agent|api\/v[12]|-\/[a-z]+)(?:\/.*)?$/i;
+
 /**
- * Merge the user config with the defaults.
- * @param {Record<string, unknown>} raw config returned by the SDK
+ * Parse the address typed by the user into the base URL of the API: a bare
+ * host (`192.0.2.5:9090`), a page of the web interface, or the API URL itself.
+ * HTTP by default, and the default port when none is given on a bare host.
+ * @param {unknown} raw
+ * @param {number} defaultPort 9090 for Prometheus, 9093 for Alertmanager
+ * @returns {string|null} `http(s)://host[:port][/prefix]`, null when unusable
+ */
+export function parseBaseUrl(raw, defaultPort) {
+  if (typeof raw !== 'string') {
+    return null;
+  }
+  const text = raw.trim();
+  if (!text) {
+    return null;
+  }
+  const hasScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(text);
+  let url;
+  try {
+    url = new URL(hasScheme ? text : `http://${text}`);
+  } catch {
+    return null;
+  }
+  if (!['http:', 'https:'].includes(url.protocol) || !url.hostname) {
+    return null;
+  }
+  // Credentials in the address would end up in the logs: there are fields.
+  if (url.username || url.password) {
+    return null;
+  }
+  if (!hasScheme && !url.port) {
+    url.port = String(defaultPort);
+  }
+  const path = url.pathname.replace(UI_PAGES, '').replace(/\/+$/, '');
+  return `${url.origin}${path}`;
+}
+
+/** The address shown to the user: host and path, without scheme. */
+export const hostOf = (baseUrl) => baseUrl.replace(/^https?:\/\//, '');
+
+const isTrue = (value) => value === true || value === 'true';
+
+/**
+ * @param {Record<string, unknown>} raw the configuration returned by the SDK
  */
 export function normalizeConfig(raw = {}) {
+  const source = raw && typeof raw === 'object' ? raw : {};
+  // A pasted password or token often carries a trailing space or new line.
+  const text = (key) => (typeof source[key] === 'string' ? source[key].trim() : '');
+  const pick = (key, list) => {
+    const value = source[key] === undefined || source[key] === null ? '' : String(source[key]);
+    return list.includes(value) ? value : DEFAULT_CONFIG[key];
+  };
+  const typedPrometheus = text('prometheus_url');
+  const typedAlertmanager = text('alertmanager_url');
+  const prometheusUrl = parseBaseUrl(typedPrometheus, 9090);
+  const alertmanagerUrl = parseBaseUrl(typedAlertmanager, 9093);
   return {
-    ...DEFAULT_CONFIG,
-    ...raw,
-    // Force the types: config may arrive as strings from a form.
-    latitude: Number(raw.latitude ?? DEFAULT_CONFIG.latitude),
-    longitude: Number(raw.longitude ?? DEFAULT_CONFIG.longitude),
-    poll_frequency: Number(raw.poll_frequency ?? DEFAULT_CONFIG.poll_frequency),
-    // The preference is a boolean; anything but an explicit false means true.
-    GLADYS_PREFER_LOCAL: raw.GLADYS_PREFER_LOCAL !== false,
+    prometheusUrl,
+    alertmanagerUrl,
+    invalidUrl:
+      (Boolean(typedPrometheus) && !prometheusUrl) ||
+      (Boolean(typedAlertmanager) && !alertmanagerUrl),
+    auth: {
+      username: text('username'),
+      password: typeof source.password === 'string' ? source.password : '',
+      bearerToken: text('bearer_token'),
+    },
+    pollIntervalMs: Number(pick('poll_interval', POLL_INTERVALS)) * 1000,
+    allowSilence:
+      source.allow_silence === undefined || source.allow_silence === null
+        ? DEFAULT_CONFIG.allow_silence
+        : isTrue(source.allow_silence),
+    allowSelfSigned: isTrue(source.allow_self_signed),
+    language: LANGUAGES.includes(source.language) ? source.language : DEFAULT_CONFIG.language,
   };
 }
