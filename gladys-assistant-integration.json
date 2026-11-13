@@ -414,6 +414,15 @@
               }
             },
             {
+              "value": "temperature_fahrenheit",
+              "label": {
+                "en": "Temperature (°F)",
+                "fr": "Température (°F)",
+                "de": "Temperatur (°F)",
+                "es": "Temperatura (°F)"
+              }
+            },
+            {
               "value": "percent",
               "label": {
                 "en": "Percentage (%)",

@@ -65,9 +65,15 @@ Still in the configuration, the **Add a query** action asks for:
   A range vector (`up[5m]`) or a text is refused: wrap it in `rate()` or
   `avg_over_time()`.
 - **Type**: what Gladys shows. Number (no unit), Temperature (°C),
+  Temperature (°F),
   Percentage (%), Power (W), Energy (kWh), Data rate (bytes/s), Size (bytes),
   Duration (seconds), or On/off (0 or 1) — the last one turns any non-zero
   value into 1. Convert in PromQL when needed (`/ 1000` for kWh from Wh).
+
+  For a temperature in °C, keep Temperature (°C): Gladys shows it in °F in the
+  room box when your profile prefers °F. The gauge box does not convert yet; to
+  see °F there, choose Temperature (°F) and convert in PromQL (`* 9 / 5 + 32`).
+
 - **Label naming the series (optional)**: when the query returns several
   series, each one becomes a feature named after this label (e.g. `instance`).
   Empty: the labels that differ from one series to the other.

@@ -70,10 +70,17 @@ Toujours dans la configuration, l'action **Ajouter une requête** demande :
   Un vecteur de plage (`up[5m]`) ou un texte est refusé : utilisez `rate()` ou
   `avg_over_time()`.
 - **Type** : ce que Gladys affiche. Nombre (sans unité), Température (°C),
+  Température (°F),
   Pourcentage (%), Puissance (W), Énergie (kWh), Débit (octets/s),
   Taille (octets), Durée (secondes), ou Binaire (0 ou 1) — ce dernier change toute
   valeur non nulle en 1. Convertissez en PromQL si besoin (`/ 1000` pour des
   kWh à partir de Wh).
+
+  Pour une température en °C, gardez Température (°C) : Gladys l'affiche en °F
+  dans la boîte de pièce si votre profil préfère les °F. La jauge ne convertit pas
+  encore ; pour y voir des °F, choisissez Température (°F) et convertissez en
+  PromQL (`* 9 / 5 + 32`).
+
 - **Étiquette qui nomme les séries (facultatif)** : quand la requête renvoie
   plusieurs séries, chacune devient une fonctionnalité nommée d'après cette
   étiquette (ex. `instance`). Vide : les étiquettes qui changent d'une série à

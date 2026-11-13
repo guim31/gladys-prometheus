@@ -120,6 +120,20 @@ test('a refused query is answered, not saved; a range or a string too', async (t
   assert.equal(w.hub.queries.size, 0);
 });
 
+test('a Fahrenheit query publishes a °F temperature feature (#8)', async (t) => {
+  const w = await world(t);
+  w.prometheus.setValue('glycol', 68.4);
+  await addQuery(w, { name: 'Glycol', promql: 'glycol', type: 'temperature_fahrenheit' });
+  await createDevices(w);
+  const feature = w.fake.discoveredDevices.find((device) => device.name === 'Glycol').features[0];
+  assert.equal(feature.category, 'temperature-sensor');
+  assert.equal(feature.unit, 'fahrenheit');
+  assert.equal(
+    stateOf(w, featureOf(w, 'Glycol', { type: 'temperature_fahrenheit', labels: {} })),
+    68.4,
+  );
+});
+
 test('series met later get a feature, up to 20; a missing series keeps it', async (t) => {
   const w = await world(t);
   w.prometheus.setValue('temp', 40.123, { chip: 'a' });
