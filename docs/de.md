@@ -70,10 +70,17 @@ Ebenfalls in der Konfiguration fragt die Aktion **Abfrage hinzufügen** nach:
   Ein Bereichsvektor (`up[5m]`) oder ein Text wird abgelehnt: Nutze `rate()`
   oder `avg_over_time()`.
 - **Typ**: was Gladys anzeigt. Zahl (ohne Einheit), Temperatur (°C),
+  Temperatur (°F),
   Prozent (%), Leistung (W), Energie (kWh), Datenrate (Bytes/s), Größe (Bytes),
   Dauer (Sekunden) oder Binär (0 oder 1) — Letzteres macht aus jedem Wert
   ungleich null eine 1. Rechne bei Bedarf in PromQL um (`/ 1000` für kWh aus
   Wh).
+
+  Für eine Temperatur in °C behalte Temperatur (°C): Gladys zeigt sie in der
+  Raum-Box in °F an, wenn dein Profil °F bevorzugt. Die Anzeige (Gauge) rechnet
+  noch nicht um; um dort °F zu sehen, wähle Temperatur (°F) und rechne in PromQL
+  um (`* 9 / 5 + 32`).
+
 - **Label, das die Serien benennt (optional)**: Wenn die Abfrage mehrere
   Serien liefert, wird jede zu einer Funktion, benannt nach diesem Label
   (z. B. `instance`). Leer: die Labels, die sich von Serie zu Serie

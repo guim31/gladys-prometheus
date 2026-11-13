@@ -69,10 +69,17 @@ También en la configuración, la acción **Añadir una consulta** pide:
   Un vector de rango (`up[5m]`) o un texto se rechaza: use `rate()` o
   `avg_over_time()`.
 - **Tipo**: lo que muestra Gladys. Número (sin unidad), Temperatura (°C),
+  Temperatura (°F),
   Porcentaje (%), Potencia (W), Energía (kWh), Tasa de datos (bytes/s), Tamaño
   (bytes), Duración (segundos) o Binario (0 o 1) — este último convierte todo
   valor distinto de cero en 1. Convierta en PromQL si hace falta (`/ 1000` para
   kWh a partir de Wh).
+
+  Para una temperatura en °C, mantenga Temperatura (°C): Gladys la muestra en °F
+  en el cuadro de la habitación si su perfil prefiere °F. El indicador (gauge) aún
+  no convierte; para ver °F allí, elija Temperatura (°F) y convierta en PromQL
+  (`* 9 / 5 + 32`).
+
 - **Etiqueta que nombra las series (opcional)**: cuando la consulta devuelve
   varias series, cada una se convierte en una función con el nombre de esta
   etiqueta (p. ej. `instance`). Vacío: las etiquetas que cambian de una serie a

@@ -10,6 +10,11 @@ the notes of the version's GitHub Release.
 
 ## [Unreleased]
 
+### Added
+
+- Temperature (°F) query type, for queries that return Fahrenheit (#8). A Celsius query keeps
+  Temperature (°C): Gladys converts it to the user's unit in the room box.
+
 ## [1.0.1] - 2026-10-22
 
 ### Security

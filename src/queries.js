@@ -35,6 +35,16 @@ export const QUERY_TYPES = Object.freeze({
     min: -100,
     max: 200,
   },
+  // For a query that already returns °F. A °C query is better kept as
+  // temperature: Gladys converts it to the user's preferred unit in the room
+  // box (not in the gauge, as of Gladys 5.3).
+  temperature_fahrenheit: {
+    category: CATEGORY.TEMPERATURE_SENSOR,
+    type: TYPE.SENSOR.DECIMAL,
+    unit: UNIT.FAHRENHEIT,
+    min: -150,
+    max: 400,
+  },
   percent: {
     category: CATEGORY.LEVEL_SENSOR,
     type: TYPE.LEVEL_SENSOR.LIQUID_LEVEL_PERCENT,
